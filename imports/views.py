@@ -1,6 +1,4 @@
 import json
-
-import datetime
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, Http404, HttpResponseNotAllowed
 from django.views.decorators.csrf import csrf_exempt
@@ -8,7 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from imports.dto import DataResponse, CitizenDTOEncoder
 from imports.service import *
 import logging
-
+import datetime
 logger = logging.getLogger(__name__)
 
 date_format = '%d.%m.%Y'
@@ -18,9 +16,9 @@ date_format = '%d.%m.%Y'
 def imports(request):
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
-        except Exception:
-            logger.debug("Can't parse request body json")
+            data = json.loads(request.body.decode('utf8'))
+        except Exception as e:
+            logger.debug("Can't parse request body json. {}".format(e.message))
             return HttpResponse(status=400)
         if type(data) is not dict:
             logger.debug("Request body is not json object. {}".format(data))
@@ -34,16 +32,13 @@ def imports(request):
             return HttpResponse(status=400)
         try:
             citizens, relative_map = validate(data=data)
-        except ValidationError as e:
+        except (ValidationError, NotSymmetricalRelatives, BadRelativesGiven) as e:
             logger.debug("Validation failed. Message - {}".format(e.message))
             return HttpResponse(e.message, status=400)
 
         # May be handle some additional exceptions
-        try:
-            import_id = handle_add_import(citizens, relative_map)
-        except (BadRelativesGiven, NotSymmetricalRelatives) as e:
-            logger.debug(e.message)
-            return HttpResponse(status=400)
+
+        import_id = handle_add_import(citizens, relative_map)
         data = DataResponse(import_id)
         logger.debug("Success request processing. Import_id - {}".format(import_id['import_id']))
         return HttpResponse(json.dumps(data.__dict__), status=201)
@@ -131,8 +126,15 @@ def validate(data):
         citizen, relatives = validate_citizen(citizen=citizen)
         citizens.append(citizen)
         relative_map.update({citizen.citizen_id: relatives})
+    for citizen_id, relatives in relative_map.items():
+        for rel_id in relatives:
+            if rel_id not in relative_map.keys():
+                raise BadRelativesGiven(citizen_id, rel_id)
+            if citizen_id not in relative_map[rel_id]:
+                raise NotSymmetricalRelatives(citizen_id, rel_id)
 
     return citizens, relative_map
+
 
 def validate_citizen(citizen, full=True):
     citizen_keys = citizen.keys()
@@ -142,10 +144,10 @@ def validate_citizen(citizen, full=True):
         if full:
             if not citizen['citizen_id']:
                 raise ValidationError("citizen_id not specified")
-            if type(citizen['citizen_id']) is int:
+            if type(citizen['citizen_id']) is int and citizen['citizen_id'] > 0:
                 citizen_id = citizen['citizen_id']
             else:
-                raise ValidationError("citizen_id must be integer")
+                raise ValidationError("citizen_id must be positive integer")
         else:
             raise ValidationError("citizen_id must not be specified")
     elif full:
@@ -178,7 +180,9 @@ def validate_citizen(citizen, full=True):
         is_there_data = True
 
     gender = check_field(citizen, 'gender', full=full)
-    if gender:
+    if gender is not None:
+        if gender != 'male' and gender != 'female':
+            raise ValidationError("Invalid gender - {}. Must be only 'male' or 'female'".format(gender))
         is_there_data = True
 
     if 'relatives' in citizen.keys():
@@ -189,6 +193,8 @@ def validate_citizen(citizen, full=True):
             for rel_id in relatives:
                 if type(rel_id) is not int:
                     raise ValidationError(message="relatives must be integers")
+            if len(set(relatives)) != len(relatives):
+                raise ValidationError("duplicate relatives ids given")
             is_there_data = True
         else:
             raise ValidationError("{} not specified".format('relatives'))
@@ -220,6 +226,8 @@ def check_field(citizen, field_name, full=True, check_int=False, is_date=False):
             if is_date:
                 try:
                     result = datetime.datetime.strptime(citizen[field_name], date_format)
+                    if result > datetime.datetime.now():
+                        raise ValidationError("Future '{}' date given".format(field_name))
                 except ValueError:
                     raise ValidationError(message="{} invalid format. Must be '{}'".format(field_name, date_format))
             else:
