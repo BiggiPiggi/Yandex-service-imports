@@ -1,6 +1,3 @@
-import datetime
-
-import imports.models
 import json
 
 
@@ -11,16 +8,16 @@ class DataResponse:
 
 
 class CitizenDTO:
-    def __init__(self, citizen):
-        self.citizen_id = citizen.citizen_id
-        self.town = citizen.town
-        self.street = citizen.street
-        self.building = citizen.building
-        self.appartement = citizen.appartement
-        self.name = citizen.name
-        self.birth_date = citizen.birth_date.strftime('%d.%m.%Y')
-        self.gender = citizen.gender
-        self.relatives = [c.citizen_id for c in citizen.relatives.all()]
+    def __init__(self, citizen=None):
+        self.citizen_id = citizen.citizen_id if citizen else None
+        self.town = citizen.town if citizen else None
+        self.street = citizen.street if citizen else None
+        self.building = citizen.building if citizen else None
+        self.appartement = citizen.appartement if citizen else None
+        self.name = citizen.name if citizen else None
+        self.birth_date = citizen.birth_date.strftime('%d.%m.%Y') if citizen else None
+        self.gender = citizen.gender if citizen else None
+        self.relatives = [c.citizen_id for c in citizen.relatives.all()] if citizen else None
 
 
 class CitizenDTOEncoder(json.JSONEncoder):
