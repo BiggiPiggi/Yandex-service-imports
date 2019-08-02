@@ -84,30 +84,28 @@ def handle_get_import(import_id):
     for from_id, to_citizen_id in cur.fetchall():
         relative_map[from_id].append(to_citizen_id)
 
-    return [{"citizen_id": citizen.citizen_id,
-             "town": citizen.town,
-             "street": citizen.street,
-             "building": citizen.building,
-             "appartement": citizen.appartement,
-             "name": citizen.name,
-             "birth_date": citizen.birth_date.strftime('%d.%m.%Y'),
-             "gender": citizen.gender,
-             "relatives": relative_map[citizen.id]
-             } for citizen in citizens]
+    return [CitizenDTO(citizen, relative_map[citizen.id]) for citizen in citizens]
 
 
 @transaction.atomic
 def handle_birth_days(import_id):
-    try:
-        import_entity = Import.objects.get(import_id=import_id)
-    except Import.DoesNotExist:
+    if not Import.objects.filter(import_id=import_id).exists():
         raise ImportNotFound(import_id=import_id)
-    citizens = import_entity.citizen_set.all()
+    citizens = Citizen.objects.filter(import_id_id=import_id).all()
+    sql = 'select from_citizen_id, birth_date to_id ' \
+          'from imports_citizen_relatives, imports_citizen cit ' \
+          'WHERE cit.id = to_citizen_id and import_id=%s'
+    cur = connection.cursor()
+    cur.execute(sql, [import_id])
     result = {str(month): [] for month in range(1, 13)}
+    relative_birth_date_map = {citizen.id: [] for citizen in citizens}
+    for from_id, to_birth_date in cur.fetchall():
+        relative_birth_date_map[from_id].append(to_birth_date)
+
     for citizen in citizens:
         buf_res = [0] * 12
-        for relative_citizen in citizen.relatives.all():
-            buf_res[relative_citizen.birth_date.month - 1] += 1
+        for relative_birth_date in relative_birth_date_map[citizen.id]:
+            buf_res[relative_birth_date.month - 1] += 1
         for i in range(len(buf_res)):
             if buf_res[i] != 0:
                 result[str(i + 1)].append({"citizen_id": citizen.citizen_id, "presents": buf_res[i]})
@@ -116,11 +114,9 @@ def handle_birth_days(import_id):
 
 @transaction.atomic
 def handle_percentile(import_id):
-    try:
-        import_entity = Import.objects.get(import_id=import_id)
-    except Import.DoesNotExist:
+    if not Import.objects.filter(import_id=import_id).exists():
         raise ImportNotFound(import_id=import_id)
-    citizens = import_entity.citizen_set.all()
+    citizens = Citizen.objects.filter(import_id_id=import_id).all()
     town_map = {}
     for citizen in citizens:
         if citizen.town in town_map.keys():
@@ -139,6 +135,10 @@ def calculate_age(birthdate):
     return today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
 
 
+# Собственная реализация функции расчета перцентиля,
+# которая работает в 2 раза медленнее numpy.percentile (неожиданно),
+# но работает корректно на массиве из целых чисел (а вот это реально неожиданно)
+# оставил ее, потому что жалко, т.к. время на нее все-таки тратил
 def percentile(data, k):
     data = sorted(data)
     index = (len(data) - 1) * k / 100
