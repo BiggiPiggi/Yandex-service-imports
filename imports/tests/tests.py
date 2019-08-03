@@ -1,6 +1,5 @@
 from django.test import TestCase
 from imports.models import Import, Citizen
-import datetime
 
 from imports.dto import CitizenDTOEncoder
 from imports.tests.generator import *
@@ -141,17 +140,27 @@ class TestImports(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertLess((e - s).total_seconds(), 5)
         import_id = json.loads(response.content)['data']['import_id']
-        database_citizens = Citizen.objects.filter(import_id=import_id)
-        self.assertEqual(database_citizens.count(), 10000)
+        database_citizens = Citizen.objects.filter(import_id=import_id).all()
+        self.assertEqual(len(database_citizens), 10000)
+        for db_cit in database_citizens.all():
+            self.assertEqual(db_cit.citizen_id, citizens[db_cit.citizen_id - 1].citizen_id)
+            self.assertEqual(db_cit.town, citizens[db_cit.citizen_id - 1].town)
+            self.assertEqual(db_cit.street, citizens[db_cit.citizen_id - 1].street)
+            self.assertEqual(db_cit.building, citizens[db_cit.citizen_id - 1].building)
+            self.assertEqual(db_cit.appartement, citizens[db_cit.citizen_id - 1].appartement)
+            self.assertEqual(db_cit.name, citizens[db_cit.citizen_id - 1].name)
+            self.assertEqual(db_cit.gender, citizens[db_cit.citizen_id - 1].gender)
+            self.assertEqual(db_cit.birth_date.strftime('%d.%m.%Y'), citizens[db_cit.citizen_id - 1].birth_date)
+            db_cit_relatives = db_cit.relatives.all()
+            self.assertEqual(len(db_cit_relatives), len(citizens[db_cit.citizen_id - 1].relatives))
+            for db_rel in db_cit_relatives:
+                self.assertTrue(db_rel.citizen_id in citizens[db_cit.citizen_id - 1].relatives)
         print("Add - {}".format((e-s).total_seconds()))
 
 
 
 class TestChangeCitizen(TestCase):
     url = "/imports/{:n}/citizens/{:n}"
-
-    def setUp(self):
-        pass
 
     def test_incorrect_path_params(self):
         data = {"name": "Новое имя"}
@@ -408,10 +417,16 @@ class TestChangeCitizen(TestCase):
             relatives = [db_citizens[cit_id - 1].id for cit_id in citizen.relatives]
             db_citizens[citizen.citizen_id - 1].relatives.set(relatives)
 
+        for rel_id in gen_citizens[9999].relatives:
+            gen_citizens[rel_id - 1].relatives.remove(gen_citizens[9999].citizen_id)
+
+        for i in range(5000):
+            gen_citizens[i].relatives.append(gen_citizens[9999].citizen_id)
+
         new_relatives = [i + 1 for i in range(5000)]
         data = {"name": "Больше некуда", "gender": "male", "relatives": new_relatives}
         s = datetime.datetime.now()
-        response = self.client.patch(self.url.format(import_obj.import_id, db_citizens[9999].citizen_id),
+        response = self.client.patch(self.url.format(import_obj.import_id, gen_citizens[9999].citizen_id),
                                      json.dumps(data),
                                      content_type='application/json')
         e = datetime.datetime.now()
@@ -420,8 +435,27 @@ class TestChangeCitizen(TestCase):
         self.assertEqual(response_citizen['citizen_id'], 10000)
         self.assertEqual(response_citizen['name'], data['name'])
         self.assertEqual(response_citizen['gender'], data['gender'])
-        self.assertEqual(response_citizen['town'], db_citizens[9999].town)
+        self.assertEqual(response_citizen['town'], gen_citizens[9999].town)
+        self.assertEqual(len(response_citizen['relatives']), 5000)
         self.assertEqual(set(response_citizen['relatives']), set(new_relatives))
+
+        database_citizens = Citizen.objects.filter(import_id=import_obj.import_id).all()
+        self.assertEqual(len(database_citizens), 10000)
+        for db_cit in database_citizens.all():
+            if db_cit.citizen_id == gen_citizens[9999].citizen_id:
+                continue
+            self.assertEqual(db_cit.citizen_id, gen_citizens[db_cit.citizen_id - 1].citizen_id)
+            self.assertEqual(db_cit.town, gen_citizens[db_cit.citizen_id - 1].town)
+            self.assertEqual(db_cit.street, gen_citizens[db_cit.citizen_id - 1].street)
+            self.assertEqual(db_cit.building, gen_citizens[db_cit.citizen_id - 1].building)
+            self.assertEqual(db_cit.appartement, gen_citizens[db_cit.citizen_id - 1].appartement)
+            self.assertEqual(db_cit.name, gen_citizens[db_cit.citizen_id - 1].name)
+            self.assertEqual(db_cit.gender, gen_citizens[db_cit.citizen_id - 1].gender)
+            self.assertEqual(db_cit.birth_date.strftime('%d.%m.%Y'), gen_citizens[db_cit.citizen_id - 1].birth_date)
+            db_cit_relatives = db_cit.relatives.all()
+            self.assertEqual(len(db_cit_relatives), len(gen_citizens[db_cit.citizen_id - 1].relatives))
+            for db_rel in db_cit_relatives:
+                self.assertTrue(db_rel.citizen_id in gen_citizens[db_cit.citizen_id - 1].relatives)
         self.assertLess((e - s).total_seconds(), 5)
         print("Change - {}".format((e-s).total_seconds()))
 
@@ -522,6 +556,17 @@ class TestGetCitizens(TestCase):
         response_citizens = json.loads(response.content.decode('utf8'))['data']
         self.assertEqual(type(response_citizens), list)
         self.assertEqual(len(response_citizens), 10000)
+        for response_cit in response_citizens:
+            self.assertEqual(response_cit['citizen_id'], gen_citizens[response_cit['citizen_id'] - 1].citizen_id)
+            self.assertEqual(response_cit['town'], gen_citizens[response_cit['citizen_id'] - 1].town)
+            self.assertEqual(response_cit['street'], gen_citizens[response_cit['citizen_id'] - 1].street)
+            self.assertEqual(response_cit['building'], gen_citizens[response_cit['citizen_id'] - 1].building)
+            self.assertEqual(response_cit['appartement'], gen_citizens[response_cit['citizen_id'] - 1].appartement)
+            self.assertEqual(response_cit['name'], gen_citizens[response_cit['citizen_id'] - 1].name)
+            self.assertEqual(response_cit['gender'], gen_citizens[response_cit['citizen_id'] - 1].gender)
+            self.assertEqual(response_cit['birth_date'], gen_citizens[response_cit['citizen_id'] - 1].birth_date)
+            self.assertEqual(len(response_cit['relatives']), len(gen_citizens[response_cit['citizen_id'] - 1].relatives))
+            self.assertEqual(set(response_cit['relatives']), set(gen_citizens[response_cit['citizen_id'] - 1].relatives))
         self.assertLess((e-s).total_seconds(), 5)
         print("Get - {}".format((e-s).total_seconds()))
 
@@ -594,6 +639,15 @@ class TestBirthDate(TestCase):
             relatives = [db_citizens[cit_id - 1].id for cit_id in citizen.relatives]
             db_citizens[citizen.citizen_id - 1].relatives.set(relatives)
 
+        answer = {str(i): [] for i in range(1,13)}
+        for citizen in db_citizens:
+            buf_res = [0] * 12
+            for rel_id in gen_citizens[citizen.citizen_id - 1].relatives:
+                buf_res[db_citizens[rel_id - 1].birth_date.month - 1] += 1
+            for i in range(len(buf_res)):
+                if buf_res[i] != 0:
+                    answer[str(i + 1)].append({"citizen_id": citizen.citizen_id, "presents": buf_res[i]})
+
         s = datetime.datetime.now()
         response = self.client.get(self.url.format(import_obj.import_id))
         e = datetime.datetime.now()
@@ -601,6 +655,12 @@ class TestBirthDate(TestCase):
         response_data = json.loads(response.content.decode('utf8'))['data']
         self.assertEqual(type(response_data), dict)
         self.assertEqual(len(response_data.keys()), 12)
+        for month, values in response_data.items():
+            self.assertEqual(len(answer[month]), len(values))
+            if len(values) > 0:
+                for value in answer[month]:
+                    self.assertTrue(value in values)
+
         print("Birth_Date - {}".format((e-s).total_seconds()))
         self.assertLess((e-s).total_seconds(), 5)
 
