@@ -1,6 +1,6 @@
 from django.http import HttpResponseNotFound
 
-class RedirectToNoSlash():
+class NoSlash():
     def __init__(self, get_response):
         self.get_response = get_response
 
