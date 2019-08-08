@@ -142,7 +142,15 @@ class TestImports(TestCase):
         import_id = json.loads(response.content)['data']['import_id']
         database_citizens = Citizen.objects.filter(import_id=import_id).all()
         self.assertEqual(len(database_citizens), 10000)
-        for db_cit in database_citizens.all():
+        db_id_to_citizen_id_map = {citizen.id: citizen.citizen_id for citizen in database_citizens}
+        relative_map = {}
+        for rel_id_pair in Citizen.relatives.through.objects.filter(
+                from_citizen_id__in=db_id_to_citizen_id_map.keys()).all():
+            if rel_id_pair.from_citizen_id in relative_map:
+                relative_map[rel_id_pair.from_citizen_id].append(db_id_to_citizen_id_map[rel_id_pair.to_citizen_id])
+            else:
+                relative_map.update({rel_id_pair.from_citizen_id: [db_id_to_citizen_id_map[rel_id_pair.to_citizen_id]]})
+        for db_cit in database_citizens:
             self.assertEqual(db_cit.citizen_id, citizens[db_cit.citizen_id - 1].citizen_id)
             self.assertEqual(db_cit.town, citizens[db_cit.citizen_id - 1].town)
             self.assertEqual(db_cit.street, citizens[db_cit.citizen_id - 1].street)
@@ -151,12 +159,12 @@ class TestImports(TestCase):
             self.assertEqual(db_cit.name, citizens[db_cit.citizen_id - 1].name)
             self.assertEqual(db_cit.gender, citizens[db_cit.citizen_id - 1].gender)
             self.assertEqual(db_cit.birth_date.strftime('%d.%m.%Y'), citizens[db_cit.citizen_id - 1].birth_date)
-            db_cit_relatives = db_cit.relatives.all()
-            self.assertEqual(len(db_cit_relatives), len(citizens[db_cit.citizen_id - 1].relatives))
-            for db_rel in db_cit_relatives:
-                self.assertTrue(db_rel.citizen_id in citizens[db_cit.citizen_id - 1].relatives)
+            try:
+                self.assertEqual(len(relative_map[db_cit.id]), len(citizens[db_cit.citizen_id - 1].relatives))
+                self.assertEqual(set(relative_map[db_cit.id]), set(citizens[db_cit.citizen_id - 1].relatives))
+            except KeyError:
+                self.assertEqual(len(citizens[db_cit.citizen_id - 1].relatives), 0)
         print("Add - {}".format((e-s).total_seconds()))
-
 
 
 class TestChangeCitizen(TestCase):
@@ -402,20 +410,7 @@ class TestChangeCitizen(TestCase):
     def test_change_relatives_citizen_max_data(self):
         import_obj = Import()
         Import.save(import_obj)
-        gen_citizens = generate_citizens(10000)
-        db_citizens = [Citizen(import_id=import_obj,
-                               citizen_id=citizen.citizen_id,
-                               town=citizen.town,
-                               street=citizen.street,
-                               appartement=citizen.appartement,
-                               name=citizen.name,
-                               birth_date=datetime.datetime.strptime(citizen.birth_date, "%d.%m.%Y"),
-                               gender=citizen.gender,
-                               building=citizen.building) for citizen in gen_citizens]
-        Citizen.objects.bulk_create(db_citizens)
-        for citizen in gen_citizens:
-            relatives = [db_citizens[cit_id - 1].id for cit_id in citizen.relatives]
-            db_citizens[citizen.citizen_id - 1].relatives.set(relatives)
+        gen_citizens = generate_citizens_in_db(import_obj, 10000)
 
         for rel_id in gen_citizens[9999].relatives:
             gen_citizens[rel_id - 1].relatives.remove(gen_citizens[9999].citizen_id)
@@ -440,8 +435,15 @@ class TestChangeCitizen(TestCase):
         self.assertEqual(set(response_citizen['relatives']), set(new_relatives))
 
         database_citizens = Citizen.objects.filter(import_id=import_obj.import_id).all()
+        db_id_to_citizen_id_map = {citizen.id: citizen.citizen_id for citizen in database_citizens}
+        relative_map = {}
+        for rel_id_pair in Citizen.relatives.through.objects.filter(from_citizen_id__in = db_id_to_citizen_id_map.keys()).all():
+            if rel_id_pair.from_citizen_id in relative_map:
+                relative_map[rel_id_pair.from_citizen_id].append(db_id_to_citizen_id_map[rel_id_pair.to_citizen_id])
+            else:
+                relative_map.update({rel_id_pair.from_citizen_id: [db_id_to_citizen_id_map[rel_id_pair.to_citizen_id]]})
         self.assertEqual(len(database_citizens), 10000)
-        for db_cit in database_citizens.all():
+        for db_cit in database_citizens:
             if db_cit.citizen_id == gen_citizens[9999].citizen_id:
                 continue
             self.assertEqual(db_cit.citizen_id, gen_citizens[db_cit.citizen_id - 1].citizen_id)
@@ -452,10 +454,12 @@ class TestChangeCitizen(TestCase):
             self.assertEqual(db_cit.name, gen_citizens[db_cit.citizen_id - 1].name)
             self.assertEqual(db_cit.gender, gen_citizens[db_cit.citizen_id - 1].gender)
             self.assertEqual(db_cit.birth_date.strftime('%d.%m.%Y'), gen_citizens[db_cit.citizen_id - 1].birth_date)
-            db_cit_relatives = db_cit.relatives.all()
-            self.assertEqual(len(db_cit_relatives), len(gen_citizens[db_cit.citizen_id - 1].relatives))
-            for db_rel in db_cit_relatives:
-                self.assertTrue(db_rel.citizen_id in gen_citizens[db_cit.citizen_id - 1].relatives)
+            try:
+                self.assertEqual(len(relative_map[db_cit.id]), len(gen_citizens[db_cit.citizen_id - 1].relatives))
+                self.assertEqual(set(relative_map[db_cit.id]), set(gen_citizens[db_cit.citizen_id - 1].relatives))
+            except KeyError:
+                self.assertEqual(len(gen_citizens[db_cit.citizen_id - 1].relatives), 0)
+
         self.assertLess((e - s).total_seconds(), 5)
         print("Change - {}".format((e-s).total_seconds()))
 
@@ -534,20 +538,7 @@ class TestGetCitizens(TestCase):
     def test_get_max_citizens(self):
         import_obj = Import()
         Import.save(import_obj)
-        gen_citizens = generate_citizens(10000)
-        db_citizens = [Citizen(import_id=import_obj,
-                               citizen_id=citizen.citizen_id,
-                               town=citizen.town,
-                               street=citizen.street,
-                               appartement=citizen.appartement,
-                               name=citizen.name,
-                               birth_date=datetime.datetime.strptime(citizen.birth_date, "%d.%m.%Y"),
-                               gender=citizen.gender,
-                               building=citizen.building) for citizen in gen_citizens]
-        Citizen.objects.bulk_create(db_citizens)
-        for citizen in gen_citizens:
-            relatives = [db_citizens[cit_id - 1].id for cit_id in citizen.relatives]
-            db_citizens[citizen.citizen_id - 1].relatives.set(relatives)
+        gen_citizens = generate_citizens_in_db(import_obj, 10000)
 
         s = datetime.datetime.now()
         response = self.client.get(self.url.format(import_obj.import_id))
@@ -623,21 +614,7 @@ class TestBirthDate(TestCase):
     def test_max_citizens_batch(self):
         import_obj = Import()
         Import.save(import_obj)
-        gen_citizens = generate_citizens(10000)
-        db_citizens = [Citizen(import_id=import_obj,
-                               citizen_id=citizen.citizen_id,
-                               town=citizen.town,
-                               street=citizen.street,
-                               appartement=citizen.appartement,
-                               name=citizen.name,
-                               birth_date=datetime.datetime.strptime(citizen.birth_date, "%d.%m.%Y"),
-                               gender=citizen.gender,
-                               building=citizen.building) for citizen in gen_citizens]
-
-        Citizen.objects.bulk_create(db_citizens)
-        for citizen in gen_citizens:
-            relatives = [db_citizens[cit_id - 1].id for cit_id in citizen.relatives]
-            db_citizens[citizen.citizen_id - 1].relatives.set(relatives)
+        gen_citizens, db_citizens = generate_citizens_in_db(import_obj, 10000, 'all')
 
         answer = {str(i): [] for i in range(1,13)}
         for citizen in db_citizens:

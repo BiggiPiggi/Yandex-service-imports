@@ -3,6 +3,8 @@ import datetime
 from imports.dto import CitizenDTO
 import random
 
+from imports.models import Citizen
+
 max_relatives_count = 20000
 names = [
     "Рогов Арнольд Богданович",
@@ -813,3 +815,26 @@ def generate_citizens(count=1, start_id=1, provide_relatives=True):
             max_relatives = max_relatives - added_relatives if max_relatives - added_relatives > 0 else 0
 
     return citizens
+
+
+def generate_citizens_in_db(import_obj, count=1, to_return='gen'):
+    gen_citizens = generate_citizens(count)
+    db_citizens = [Citizen(import_id=import_obj,
+                           citizen_id=citizen.citizen_id,
+                           town=citizen.town,
+                           street=citizen.street,
+                           appartement=citizen.appartement,
+                           name=citizen.name,
+                           birth_date=datetime.datetime.strptime(citizen.birth_date, "%d.%m.%Y"),
+                           gender=citizen.gender,
+                           building=citizen.building) for citizen in gen_citizens]
+    Citizen.objects.bulk_create(db_citizens)
+    relatives = [Citizen.relatives.through(from_citizen_id= db_citizens[citizen.citizen_id - 1].id, to_citizen_id=db_citizens[cit_id - 1].id)
+                 for citizen in gen_citizens
+                 for cit_id in citizen.relatives]
+    Citizen.relatives.through.objects.bulk_create(relatives)
+    if to_return == 'gen':
+        return gen_citizens
+    elif to_return == 'db':
+        return db_citizens
+    return gen_citizens, db_citizens
