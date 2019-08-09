@@ -1,4 +1,6 @@
 import json
+from json import JSONDecodeError
+
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, Http404, HttpResponseNotAllowed
 from django.views.decorators.csrf import csrf_exempt
@@ -17,8 +19,11 @@ def imports(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body.decode('utf8'))
-        except Exception as e:
-            logger.debug("Can't parse request body json. {}".format(e.message))
+        except JSONDecodeError as e:
+            logger.debug("Can't parse request body json. {}".format(e.msg))
+            return HttpResponse(status=400)
+        except Exception:
+            logger.debug("Can't parse request body json.")
             return HttpResponse(status=400)
         if type(data) is not dict:
             logger.debug("Request body is not json object. {}".format(data))
@@ -221,8 +226,12 @@ def check_field(citizen, field_name, full=True, check_int=False, is_date=False):
         if citizen[field_name]:
             if check_int and type(citizen[field_name]) is not int:
                 raise ValidationError("{} must be integer".format(field_name))
-            if not check_int and type(citizen[field_name]) is not str:
-                raise ValidationError("{} must be string".format(field_name))
+            if not check_int:
+                if type(citizen[field_name]) is not str:
+                    raise ValidationError("{} must be string".format(field_name))
+                else:
+                    if len(citizen[field_name].strip()) == 0:
+                        raise ValidationError("{} must be not empty string".format(field_name))
             if is_date:
                 try:
                     result = datetime.datetime.strptime(citizen[field_name], date_format)
