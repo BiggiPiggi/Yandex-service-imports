@@ -25,7 +25,7 @@ SECRET_KEY = 'yd2t(dm@_41#tht2*l+n&r=bxdwipg+(0gk1fs&2p)=(2h*%5e'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['0.0.0.0']
 LOCKDOWN_ADMIN = False
 
 # Application definition
