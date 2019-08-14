@@ -103,8 +103,10 @@ If all is good in log/error.gunicorn.log you’ll see:
 [2019-08-13 14:46:14 +0000] [11088] [INFO] Booting worker with pid: 11088
 [2019-08-13 14:46:14 +0000] [11089] [INFO] Booting worker with pid: 11089
 ```
+Now our service available in browser on 8080 ports.
+
 ### Run tests
-Now, run tests checking that internal logic works as we need:
+Now, run tests checking that internal logic works as we need (you must be in the main project folder: Yandex-service-imports):
 ```
 (venv) $ python3 manage.py tests
 ```
