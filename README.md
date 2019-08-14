@@ -46,7 +46,7 @@ And then install virtualenv (tool for isolate our projects’s external dependen
 ```
 $ sudo pip3 install virtualenv
 ```
-### Cloning and install project and run it
+### Cloning, install and run project
 For cloning project from github install git:
 ```
 $ sudo apt-get install git
@@ -61,6 +61,8 @@ $ cd Yandex-service-imports
 $ virtualenv venv
 $ source venv/bin/activate
 ```
+> Note: To exit from virtual environment write `(venv) $ deactivate`
+
 Now install project extend dependencies:
 ```
 (venv) $ pip3 install -r requirements.txt
@@ -101,3 +103,80 @@ If all is good in log/error.gunicorn.log you’ll see:
 [2019-08-13 14:46:14 +0000] [11088] [INFO] Booting worker with pid: 11088
 [2019-08-13 14:46:14 +0000] [11089] [INFO] Booting worker with pid: 11089
 ```
+### Run tests
+Now, run tests checking that internal logic works as we need:
+```
+(venv) $ python3 manage.py tests
+```
+If all is OK, you'll see something like this:
+```
+Creating test database for alias 'default'...
+System check identified no issues (0 silenced).
+.Birth_Date - 0.151621
+......Change - 0.538451
+...Get - 0.145399
+.....Add - 0.959776
+......Percentile - 0.121545
+..
+----------------------------------------------------------------------
+Ran 23 tests in 12.202s
+
+OK
+Destroying test database for alias 'default'...
+```
+### Install and configure supervisor
+Lets install and configure supervisor to allow more control over our project (e.g. autostart and autorestart). Note that you must be not in virtual environment.
+```
+$ sudo apt-get install supervisor
+```
+Now create an executable bash script to run gunicorn. Firstly create text file with the following content and put it in any folder :
+```bash
+cd /home/user_name/path/to/project/Yandex-service-imports
+source venv/bin/activate
+exec gunicorn -c gunicorn.conf.py Yandex.wsgi:application
+```
+> Note: Provide full path to the main project folder in the first line.
+
+Then make new created file executable:
+```
+$ chmod +x new_executable_filename
+```
+Next, we’ll configure supervisor. For that, change directory to **/etc/supervisor/conf.d**. Here create file **supervisord.conf** with the following content:
+```
+[inet_http_server]
+port=0.0.0.0:8081
+
+[supervisord]
+logfile=/var/log/supervisor/supervisord.log
+loglevel=debug
+
+[program:imports]
+command=/bin/bash /absolute/path/to/executable/file/create/above/executable_filename
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/imports.err.log
+stdout_logfile=/var/log/supervisor/imports.out.log
+stopsignal=KILL
+stopasgroup=true
+killasgroup=true
+startsecs=0
+
+[supervisorctl]
+serverurl=unix:///var/run/supervisor.sock
+```
+> Note: For more information about supervisor configuration, please, visit [supervisor official page](http://supervisord.org/configuration.html)
+
+Now let start our project via supervisor:
+```
+$ sudo supervisorctl reread
+$ sudo supervisorctl start imports
+```
+To check status of project write:
+```
+$ sudo supervisorctl status imports
+```
+And if all is well you will see 
+```
+imports                          RUNNING   pid 12081, uptime 0:02:11
+```
+> Note: If there is some problem with starting project via supervisor (e.g. ERROR no such process) try to reload supervisor: `sudo supervisorctl reload` and start again).
