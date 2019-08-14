@@ -183,4 +183,4 @@ imports                          RUNNING   pid 12081, uptime 0:02:11
 ```
 > Note: If there is some problem with starting project via supervisor (e.g. ERROR no such process) try to reload supervisor: `sudo supervisorctl reload` and start our project again.
 
-Now our service will automatically start to work even we reboot computer/server where it hosted.
+Now our service will automatically start to work even if we reboot computer/server where it hosted.
