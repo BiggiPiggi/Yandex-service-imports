@@ -108,7 +108,7 @@ Now our service is available in browser on 8080 port.
 ### Run tests
 Now, run tests checking that internal logic works as we need (you must be in the main project folder: Yandex-service-imports):
 ```
-(venv) $ python3 manage.py tests
+(venv) $ python3 manage.py test
 ```
 If all is OK, you'll see something like this:
 ```
