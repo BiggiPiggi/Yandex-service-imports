@@ -103,10 +103,12 @@ If all is good in log/error.gunicorn.log you’ll see:
 [2019-08-13 14:46:14 +0000] [11088] [INFO] Booting worker with pid: 11088
 [2019-08-13 14:46:14 +0000] [11089] [INFO] Booting worker with pid: 11089
 ```
+Now our service is available in browser on 8080 port.
+
 ### Run tests
-Now, run tests checking that internal logic works as we need:
+Now, run tests checking that internal logic works as we need (you must be in the main project folder: Yandex-service-imports):
 ```
-(venv) $ python3 manage.py tests
+(venv) $ python3 manage.py test
 ```
 If all is OK, you'll see something like this:
 ```
@@ -179,4 +181,6 @@ And if all is well you will see
 ```
 imports                          RUNNING   pid 12081, uptime 0:02:11
 ```
-> Note: If there is some problem with starting project via supervisor (e.g. ERROR no such process) try to reload supervisor: `sudo supervisorctl reload` and start again).
+> Note: If there is some problem with starting project via supervisor (e.g. ERROR no such process) try to reload supervisor: `sudo supervisorctl reload` and start our project again.
+
+Now our service will automatically start to work even if we reboot computer/server where it hosted.
