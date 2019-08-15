@@ -130,7 +130,10 @@ def validate(data):
     for citizen in data:
         citizen, relatives = validate_citizen(citizen=citizen)
         citizens.append(citizen)
-        relative_map.update({citizen.citizen_id: relatives})
+        if citizen.citizen_id not in relative_map.keys():
+            relative_map.update({citizen.citizen_id: relatives})
+        else:
+            raise ValidationError("not unique citizen_id into one date batch")
     for citizen_id, relatives in relative_map.items():
         for rel_id in relatives:
             if rel_id not in relative_map.keys():
