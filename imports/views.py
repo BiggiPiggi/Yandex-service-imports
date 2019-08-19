@@ -32,7 +32,7 @@ def imports(request):
             logger.debug("No found citizens key in incoming json. {}".format(data))
             return HttpResponse(status=400)
         data = data['citizens']
-        if data is None or type(data) is not list:
+        if data is None or type(data) is not list or len(data) == 0:
             logger.debug("No citizens provided or they are not in list. {}".format(data))
             return HttpResponse(status=400)
         try:
