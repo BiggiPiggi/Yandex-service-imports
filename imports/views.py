@@ -146,16 +146,18 @@ def validate(data):
 
 def validate_citizen(citizen, full=True):
     citizen_keys = citizen.keys()
-    is_there_data = False
+
+    is_there_data = 0
 
     if 'citizen_id' in citizen_keys:
         if full:
-            if not citizen['citizen_id']:
+            if citizen['citizen_id'] is None:
                 raise ValidationError("citizen_id not specified")
-            if type(citizen['citizen_id']) is int and citizen['citizen_id'] > 0:
+            if type(citizen['citizen_id']) is int and citizen['citizen_id'] >= 0:
                 citizen_id = citizen['citizen_id']
+                is_there_data += 1
             else:
-                raise ValidationError("citizen_id must be positive integer")
+                raise ValidationError("citizen_id must be not negative integer")
         else:
             raise ValidationError("citizen_id must not be specified")
     elif full:
@@ -165,33 +167,33 @@ def validate_citizen(citizen, full=True):
 
     town = check_field(citizen, 'town', full=full)
     if town:
-        is_there_data = True
+        is_there_data += 1
 
     street = check_field(citizen, 'street', full=full)
     if street:
-        is_there_data = True
+        is_there_data += 1
 
     building = check_field(citizen, 'building', full=full)
     if building:
-        is_there_data = True
+        is_there_data += 1
 
     appartement = check_field(citizen, 'appartement', full=full, check_int=True)
-    if appartement:
-        is_there_data = True
+    if appartement is not None:
+        is_there_data += 1
 
     name = check_field(citizen, 'name', full=full)
     if name:
-        is_there_data = True
+        is_there_data += 1
 
     birth_date = check_field(citizen, 'birth_date', full=full, is_date=True)
     if birth_date:
-        is_there_data = True
+        is_there_data += 1
 
     gender = check_field(citizen, 'gender', full=full)
     if gender is not None:
         if gender != 'male' and gender != 'female':
             raise ValidationError("Invalid gender - {}. Must be only 'male' or 'female'".format(gender))
-        is_there_data = True
+        is_there_data += 1
 
     if 'relatives' in citizen.keys():
         if citizen['relatives'] is not None:
@@ -203,7 +205,7 @@ def validate_citizen(citizen, full=True):
                     raise ValidationError(message="relatives must be integers")
             if len(set(relatives)) != len(relatives):
                 raise ValidationError("duplicate relatives ids given")
-            is_there_data = True
+            is_there_data += 1
         else:
             raise ValidationError("{} not specified".format('relatives'))
     elif full:
@@ -213,6 +215,9 @@ def validate_citizen(citizen, full=True):
 
     if not is_there_data and not full:
         raise ValidationError(message="No one field is provided. Must be at least one")
+
+    if len(citizen_keys) > is_there_data:
+        raise ValidationError("there are {} redundant fields".format(len(citizen_keys) - is_there_data))
 
     return (Citizen(citizen_id=citizen_id,
                     town=town,
@@ -226,15 +231,19 @@ def validate_citizen(citizen, full=True):
 
 def check_field(citizen, field_name, full=True, check_int=False, is_date=False):
     if field_name in citizen.keys():
-        if citizen[field_name]:
-            if check_int and type(citizen[field_name]) is not int:
-                raise ValidationError("{} must be integer".format(field_name))
+        if citizen[field_name] is not None:
+            if check_int:
+                if type(citizen[field_name]) is not int:
+                    raise ValidationError("{} must be integer".format(field_name))
+                else:
+                    if citizen[field_name] < 0:
+                        raise ValidationError("{} must be not negative integer".format(field_name))
             if not check_int:
                 if type(citizen[field_name]) is not str:
                     raise ValidationError("{} must be string".format(field_name))
                 else:
-                    if len(citizen[field_name].strip()) == 0:
-                        raise ValidationError("{} must be not empty string".format(field_name))
+                    if len(citizen[field_name].strip()) == 0 or len(citizen[field_name]) > 256:
+                        raise ValidationError("{} must be string with length in (0, 256]".format(field_name))
             if is_date:
                 try:
                     result = datetime.datetime.strptime(citizen[field_name], date_format)
