@@ -58,7 +58,7 @@ def handle_change_citizen(import_id, citizen_id, new_citizen_info, new_relatives
         citizen.street = new_citizen_info.street
     if new_citizen_info.building:
         citizen.building = new_citizen_info.building
-    if new_citizen_info.appartement:
+    if new_citizen_info.appartement is not None:
         citizen.appartement = new_citizen_info.appartement
     if new_citizen_info.name:
         citizen.name = new_citizen_info.name
