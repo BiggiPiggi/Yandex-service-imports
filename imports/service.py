@@ -124,9 +124,9 @@ def handle_percentile(import_id):
         else:
             town_map.update({citizen.town: [calculate_age(citizen.birth_date)]})
     return [{"town": town,
-             "p50": numpy.percentile(ages, 50),
-             "p75": numpy.percentile(ages, 75),
-             "p99": numpy.percentile(ages, 99),
+             "p50": round(numpy.percentile(ages, 50), 2),
+             "p75": round(numpy.percentile(ages, 75), 2),
+             "p99": round(numpy.percentile(ages, 99), 2)
              } for town, ages in town_map.items()]
 
 
