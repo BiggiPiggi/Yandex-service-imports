@@ -89,9 +89,7 @@ class TestImports(TestCase):
 
     def test_no_citizen(self):
         response = self.post([])
-        self.assertEqual(response.status_code, 201)
-        import_id = json.loads(response.content)['data']['import_id']
-        self.assertFalse(Citizen.objects.filter(import_id=import_id).exists())
+        self.assertEqual(response.status_code, 400)
 
     def test_add_one_citizen(self):
         citizen = generate_one_citizen()
