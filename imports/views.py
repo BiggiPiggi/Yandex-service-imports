@@ -37,7 +37,7 @@ def imports(request):
             return HttpResponse(status=400)
         try:
             citizens, relative_map = validate(data=data)
-        except (ValidationError, NotSymmetricalRelatives, BadRelativesGiven) as e:
+        except ValidationError as e:
             logger.debug("Validation failed. Message - {}".format(e.message))
             return HttpResponse(e.message, status=400)
 
