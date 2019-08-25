@@ -779,14 +779,12 @@ streets = [
 genders = ["male", "female"]
 
 def generate_one_citizen(id=1):
-    appartement = random.randint(1, 1000)
-
     citizen = CitizenDTO()
     citizen.citizen_id = id
     citizen.town = random.choice(towns)
     citizen.street = random.choice(streets)
     citizen.building = "Да любой"
-    citizen.appartement = appartement
+    citizen.appartement = random.randint(1, 1000)
     citizen.name = random.choice(names)
     citizen.birth_date = datetime.date(random.randint(1910, 2010), random.randint(1, 12), random.randint(1, 28)).strftime('%d.%m.%Y')
     citizen.gender = random.choice(genders)
