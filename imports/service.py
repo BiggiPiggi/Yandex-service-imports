@@ -1,9 +1,11 @@
-from imports.dto import CitizenDTO
-from imports.models import Import, Citizen
-from django.db import transaction, connection
-from imports.exceptions import ImportNotFound, CitizenNotFound, BadRelativesGiven, RelativesNotFound, NotSymmetricalRelatives
-from datetime import date
+from datetime import datetime
+
 import numpy
+from django.db import transaction, connection
+
+from imports.dto import CitizenDTO
+from imports.exceptions import ImportNotFound, CitizenNotFound, RelativesNotFound
+from imports.models import Import, Citizen
 
 
 @transaction.atomic
@@ -131,7 +133,7 @@ def handle_percentile(import_id):
 
 
 def calculate_age(birthdate):
-    today = date.today()
+    today = datetime.utcnow().date()
     return today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
 
 

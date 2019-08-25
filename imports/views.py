@@ -2,10 +2,11 @@ import json
 from json import JSONDecodeError
 
 from django.core.exceptions import ValidationError
-from django.http import HttpResponse, Http404, HttpResponseNotAllowed
+from django.http import HttpResponse, HttpResponseNotAllowed
 from django.views.decorators.csrf import csrf_exempt
 
 from imports.dto import DataResponse, CitizenDTOEncoder
+from imports.exceptions import NotSymmetricalRelatives, BadRelativesGiven
 from imports.service import *
 import logging
 import datetime
@@ -246,8 +247,8 @@ def check_field(citizen, field_name, full=True, check_int=False, is_date=False):
                         raise ValidationError("{} must be string with length in (0, 256]".format(field_name))
             if is_date:
                 try:
-                    result = datetime.datetime.strptime(citizen[field_name], date_format)
-                    if result > datetime.datetime.now():
+                    result = datetime.datetime.strptime(citizen[field_name], date_format).date()
+                    if result >= datetime.datetime.utcnow().date():
                         raise ValidationError("Future '{}' date given".format(field_name))
                 except ValueError:
                     raise ValidationError(message="{} invalid format. Must be '{}'".format(field_name, date_format))
