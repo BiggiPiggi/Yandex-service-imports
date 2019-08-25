@@ -42,6 +42,11 @@ class TestImports(TestCase):
         self.assertEqual(response.status_code, 400)
 
         citizen = generate_one_citizen()
+        citizen.appartement = -100
+        response = self.post(citizen)
+        self.assertEqual(response.status_code, 400)
+
+        citizen = generate_one_citizen()
         citizen.name = 1555
         response = self.post(citizen)
         self.assertEqual(response.status_code, 400)
@@ -78,6 +83,21 @@ class TestImports(TestCase):
         citizens = generate_citizens(2, provide_relatives=False)
         citizens[0].relatives = [2]
         response = self.post(citizens)
+        self.assertEqual(response.status_code, 400)
+
+        citizens = generate_citizens(2, provide_relatives=False)
+        citizens[1].citizen_id = citizens[0].citizen_id
+        response = self.post(citizens)
+        self.assertEqual(response.status_code, 400)
+
+        citizen = generate_one_citizen()
+        citizen.redundant = "redundant"
+        response = self.post(citizen)
+        self.assertEqual(response.status_code, 400)
+
+        citizen = generate_one_citizen()
+        citizen.relatives = [citizen.citizen_id, citizen.citizen_id]
+        response = self.post(citizen)
         self.assertEqual(response.status_code, 400)
 
         citizens = generate_citizens(3, provide_relatives=False)
@@ -197,14 +217,23 @@ class TestChangeCitizen(TestCase):
         response = self.client.patch(self.url.format(0, 0), json.dumps(data), content_type='application/json')
         self.assertEqual(response.status_code, 400)
 
+        data = {"name": "New name",
+                "appartement":-100}
+        response = self.client.patch(self.url.format(0, 0), json.dumps(data), content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+
         data = {"name": "Новое имя",
                 "birth_date": "01-01-2019"}
         response = self.client.patch(self.url.format(0, 0), json.dumps(data), content_type='application/json')
         self.assertEqual(response.status_code, 400)
 
         data = {"name": "Новое имя",
-                "birth_date": "01-01-2019"}
-        data.update({"town": None})
+                "town": None}
+        response = self.client.patch(self.url.format(0, 0), json.dumps(data), content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+
+        data = {"name": "Новое имя",
+                "redundant": "redundant"}
         response = self.client.patch(self.url.format(0, 0), json.dumps(data), content_type='application/json')
         self.assertEqual(response.status_code, 400)
 
@@ -237,7 +266,7 @@ class TestChangeCitizen(TestCase):
                                      content_type='application/json')
         self.assertEqual(response.status_code, 400)
 
-        data = {"gender": "transgender"}
+        data = {"gender": "gender"}
         response = self.client.patch(self.url.format(import_obj.import_id, db_citizen.citizen_id),
                                      json.dumps(data),
                                      content_type='application/json')
@@ -648,6 +677,59 @@ class TestPercentile(TestCase):
         response = self.client.get(self.url.format(1000000))
         self.assertEqual(response.status_code, 404)
 
+
+    def test_with_precalculated_data(self):
+        answer = {"Ташкент": {"p50": 33, "p75": 61, "p99": 77.9}, "Москва": {"p50": 23, "p75": 25.5, "p99": 61.2}}
+        import_obj = Import()
+        Import.save(import_obj)
+        gen_citizens = generate_citizens(22, provide_relatives=False)
+        moscow, tashkent = "Москва", "Ташкент"
+        gen_citizens[0].birth_date = "01.01.2009"
+        gen_citizens[1].birth_date = "01.01.1956"
+        gen_citizens[2].birth_date = "01.01.1960"
+        gen_citizens[3].birth_date = "01.01.1998"
+        gen_citizens[4].birth_date = "01.01.1990"
+        gen_citizens[5].birth_date = "01.01.1942"
+        gen_citizens[6].birth_date = "01.01.1975"
+        gen_citizens[7].birth_date = "01.01.1986"
+        gen_citizens[8].birth_date = "01.01.2001"
+        gen_citizens[9].birth_date = "01.01.2004"
+        gen_citizens[10].birth_date = "01.01.1941"
+        gen_citizens[11].birth_date = "01.01.2001"
+        gen_citizens[12].birth_date = "01.01.2000"
+        gen_citizens[13].birth_date = "01.01.1999"
+        gen_citizens[14].birth_date = "01.01.1998"
+        gen_citizens[15].birth_date = "01.01.1997"
+        gen_citizens[16].birth_date = "01.01.1996"
+        gen_citizens[17].birth_date = "01.01.1995"
+        gen_citizens[18].birth_date = "01.01.1994"
+        gen_citizens[19].birth_date = "01.01.1993"
+        gen_citizens[20].birth_date = "01.01.1992"
+        gen_citizens[21].birth_date = "01.01.1954"
+        for i in range(11):
+            gen_citizens[i].town = tashkent
+            gen_citizens[i+11].town = moscow
+
+        db_citizens = [Citizen(import_id=import_obj,
+                               citizen_id=citizen.citizen_id,
+                               town=citizen.town,
+                               street=citizen.street,
+                               appartement=citizen.appartement,
+                               name=citizen.name,
+                               birth_date=datetime.datetime.strptime(citizen.birth_date, "%d.%m.%Y"),
+                               gender=citizen.gender,
+                               building=citizen.building) for citizen in gen_citizens]
+        Citizen.objects.bulk_create(db_citizens)
+        response = self.client.get(self.url.format(import_obj.import_id))
+        self.assertEqual(response.status_code, 200)
+        response_data = json.loads(response.content.decode('utf8'))['data']
+        self.assertEqual(type(response_data), list)
+        self.assertEqual(len(response_data), 2)
+        for town_info in response_data:
+            self.assertEqual(town_info['p50'], answer[town_info['town']]['p50'])
+            self.assertEqual(town_info['p75'], answer[town_info['town']]['p75'])
+            self.assertEqual(town_info['p99'], answer[town_info['town']]['p99'])
+
     def test_small_citizen_batch(self):
         import_obj = Import()
         Import.save(import_obj)
@@ -666,7 +748,7 @@ class TestPercentile(TestCase):
         Citizen.objects.bulk_create(db_citizens)
         ages = {'Москва': [], 'Ташкент': []}
         for citizen in db_citizens:
-            today = datetime.date.today()
+            today = datetime.datetime.utcnow().date()
             ages[citizen.town].append(today.year - citizen.birth_date.year - ((today.month, today.day) < (citizen.birth_date.month, citizen.birth_date.day)))
 
         response = self.client.get(self.url.format(import_obj.import_id))
@@ -675,9 +757,9 @@ class TestPercentile(TestCase):
         self.assertEqual(type(response_data), list)
         self.assertEqual(len(response_data), 2)
         for town_info in response_data:
-            self.assertEqual(round(town_info['p50'], 2), round(numpy.percentile(ages[town_info['town']], 50), 2))
-            self.assertEqual(round(town_info['p75'], 2), round(numpy.percentile(ages[town_info['town']], 75), 2))
-            self.assertEqual(round(town_info['p99'], 2), round(numpy.percentile(ages[town_info['town']], 99), 2))
+            self.assertEqual(town_info['p50'], round(numpy.percentile(ages[town_info['town']], 50), 2))
+            self.assertEqual(town_info['p75'], round(numpy.percentile(ages[town_info['town']], 75), 2))
+            self.assertEqual(town_info['p99'], round(numpy.percentile(ages[town_info['town']], 99), 2))
 
     def test_max_citizen_batch(self):
         import_obj = Import()
@@ -695,7 +777,7 @@ class TestPercentile(TestCase):
         Citizen.objects.bulk_create(db_citizens)
         ages = {}
         for citizen in db_citizens:
-            today = datetime.date.today()
+            today = datetime.datetime.utcnow().date()
             if citizen.town in ages.keys():
                 ages[citizen.town].append(today.year - citizen.birth_date.year - ((today.month, today.day) < (citizen.birth_date.month, citizen.birth_date.day)))
             else:
@@ -709,8 +791,8 @@ class TestPercentile(TestCase):
         self.assertEqual(type(response_data), list)
         self.assertEqual(len(response_data), len(ages.keys()))
         for town_info in response_data:
-            self.assertEqual(round(town_info['p50'], 2), round(numpy.percentile(ages[town_info['town']], 50), 2))
-            self.assertEqual(round(town_info['p75'], 2), round(numpy.percentile(ages[town_info['town']], 75), 2))
-            self.assertEqual(round(town_info['p99'], 2), round(numpy.percentile(ages[town_info['town']], 99), 2))
+            self.assertEqual(town_info['p50'], round(numpy.percentile(ages[town_info['town']], 50), 2))
+            self.assertEqual(town_info['p75'], round(numpy.percentile(ages[town_info['town']], 75), 2))
+            self.assertEqual(town_info['p99'], round(numpy.percentile(ages[town_info['town']], 99), 2))
         print("Percentile - {}".format((e-s).total_seconds()))
         self.assertLess((e-s).total_seconds(), 5.0)
